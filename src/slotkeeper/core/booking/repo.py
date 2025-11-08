@@ -29,7 +29,11 @@ class InMemoryBookingRepo:
     def mark_expired_if_held_and_due(self, now: datetime) -> list[int]:
         expired: list[int] = []
         for b in self._items.values():
-            if b.status == BookingStatus.pending_review and b.hold_deadline and now >= b.hold_deadline:
+            if (
+                b.status == BookingStatus.pending_review
+                and b.hold_deadline
+                and now >= b.hold_deadline
+            ):
                 b.status = BookingStatus.expired
                 expired.append(b.id)
         return expired

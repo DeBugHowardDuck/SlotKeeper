@@ -12,10 +12,14 @@ from slotkeeper.core.booking.repo import InMemoryBookingRepo
 from slotkeeper.handlers.start import router as start_router
 from slotkeeper.handlers.search import router as search_router
 from slotkeeper.handlers.collect import router as collect_router
+from slotkeeper.handlers.admin import router as admin_router
+
+from slotkeeper.core.booking.shared import HOLDS
+from slotkeeper.core.notify.notifier import NOTIFY
 
 
 _REPO = InMemoryBookingRepo
-_HOLDS = HoldManager(repo=_REPO, tz="Europe/Moscow")
+_HOLDS = HoldManager(repo=_REPO, tz="Europe/Riga")
 
 
 async def run() -> None:
@@ -36,13 +40,16 @@ async def run() -> None:
         storage = MemoryStorage()
         logging.info("FSM storage: Memory (no REDIS_URL)")
 
-    _HOLDS.tz = settings.APP_TIMEZONE
-    _HOLDS.start(interval_seconds=5)
+    NOTIFY.set_runtime(bot=bot, settings=settings)
+
+    HOLDS.tz = settings.APP_TIMEZONE
+    HOLDS.start(interval_seconds=30)
 
     dp = Dispatcher(storage=storage)
     dp.include_router(start_router)
     dp.include_router(collect_router)
     dp.include_router(search_router)
+    dp.include_router(admin_router)
 
     await dp.start_polling(bot)
 

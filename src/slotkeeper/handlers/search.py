@@ -12,8 +12,12 @@ from slotkeeper.config import Settings
 from slotkeeper.core.availability import generate_slots_for_day
 from slotkeeper.core.booking.models import BookingStatus, Booking, Customer
 from slotkeeper.core.booking.repo import InMemoryBookingRepo
-from slotkeeper.ui.keyboards import weekdays_kb, times_kb
 from slotkeeper.fsm.states import ClientFlow
+
+from slotkeeper.core.booking.shared import REPO
+from slotkeeper.core.notify.notifier import NOTIFY
+from slotkeeper.ui.keyboards import weekdays_kb, times_kb, admin_booking_actions_kb
+
 
 router = Router()
 
@@ -95,10 +99,31 @@ async def pick_time_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
         starts_at=start_dt,
         ends_at=end_dt,
         status=BookingStatus.draft,
+        client_chat_id=(cb.message.chat.id if cb.message else cb.message.from_user.id),
     )
-    booking = _REPO.add(booking)
+
+    booking = REPO.add(booking)
     booking.set_hold(minutes=settings.HOLD_MINUTES, tz=settings.APP_TIMEZONE)
-    _REPO.update(booking)
+    REPO.update(booking)
+
+    NOTIFY.schedule_hold_warning(booking.id)
+
+    admin_text = (
+        f"Новая заявка #{booking.id}\n"
+        f"Интервал: {start_dt.strftime('%Y-%m-%d %H:%M')}–{end_dt.strftime('%H:%M')}\n"
+        f"Клиент: {fullname}\nТелефон: {phone}\nГостей: {guests}\n"
+        f"Статус: {booking.status}\n"
+        f"Холд до: {booking.hold_deadline.strftime('%H:%M') if booking.hold_deadline else '—'}"
+    )
+    for admin_id in settings.admin_ids:
+        try:
+            await cb.bot.send_message(
+                chat_id=admin_id,
+                text=admin_text,
+                reply_markup=admin_booking_actions_kb(booking.id),
+            )
+        except Exception:
+            pass
 
     await cb.message.answer(
         f"Заявка #{booking.id}: {start_dt.strftime('%Y-%m-%d %H:%M')}–{end_dt.strftime('%H:%M')} на холде "
