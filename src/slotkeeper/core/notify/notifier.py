@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Iterable, Optional
+from typing import Optional
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
@@ -11,10 +11,12 @@ from aiogram import Bot
 from slotkeeper.config import Settings
 from slotkeeper.core.booking.shared import REPO
 
+
 @dataclass
 class _Runtime:
     bot: Optional[Bot] = None
     settings: Optional[Settings] = None
+
 
 class Notifier:
     def __init__(self) -> None:

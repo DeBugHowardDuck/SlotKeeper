@@ -10,6 +10,7 @@ class ClientFlow(StatesGroup):
     ContactPhone = State()
     GuestsCount = State()
     Summary = State()
+    PickDuration = State()
 
     Submit = State()
     WaitAdmin = State()

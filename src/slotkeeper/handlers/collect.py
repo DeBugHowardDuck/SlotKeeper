@@ -8,6 +8,11 @@ from aiogram.types import Message
 from slotkeeper.fsm.states import ClientFlow
 from slotkeeper.utils.validators import is_phone, parse_guests
 
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, date
+from slotkeeper.ui.keyboards import month_kb
+from slotkeeper.config import Settings
+
 router = Router()
 
 
@@ -20,7 +25,7 @@ async def got_fullname_ask_phone(message: Message, state: FSMContext) -> None:
         )
         return
 
-    await state.update_data(fullname=fullname)
+    await state.update_data(fullname=message.text.strip())
     await state.set_state(ClientFlow.ContactPhone)
     await message.answer("Введи номер телефона в формате +79001234567.")
 
@@ -47,15 +52,29 @@ async def got_guests_show_summary(message: Message, state: FSMContext) -> None:
         return
 
     await state.update_data(guests=guests)
+    await state.set_state(ClientFlow.Summary)
     data = await state.get_data()
-
-    summary = (
+    await message.answer(
         "Сводка заявки:\n"
-        f"• Имя: {data.get('fullname')}\n"
-        f"• Телефон: {data.get('phone')}\n"
-        f"• Гостей: {data.get('guests')}\n"
-        "\nСтатус: draft. Дальше добавим выбор времени и холд."
+        f"Имя: {data.get('fullname')}\n"
+        f"Телефон: {data.get('phone')}\n"
+        f"Гостей: {data.get('guests')}\n\n"
+        "Статус: draft. Дальше выберем дату и время."
     )
 
-    await message.answer(summary)
-    await state.set_state(ClientFlow.Summary)
+    settings = Settings()
+    tz = ZoneInfo(settings.APP_TIMEZONE)
+    today = datetime.now(tz).date()
+
+    y, m = today.year, today.month
+    total_months = y * 12 + (m - 1) + settings.MAX_MONTHS_AHEAD
+    max_year = total_months // 12
+    max_month = total_months % 12 + 1
+    max_day = date(max_year, max_month, 1) - timedelta(days=1)
+
+    await message.answer(
+        "Выбери день на календаре или введи дату текстом в формате ДД.ММ.ГГГГ.",
+        reply_markup=month_kb(
+            y, m, settings.APP_TIMEZONE, min_date=today, max_date=max_day
+        ),
+    )

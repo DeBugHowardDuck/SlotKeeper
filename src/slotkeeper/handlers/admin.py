@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+from aiogram.enums import ParseMode
+from aiogram.filters import Command as CommandFilter
+
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
+
 from slotkeeper.config import Settings
 from slotkeeper.core.booking.shared import REPO
 from slotkeeper.core.booking.models import BookingStatus
 
 router = Router()
 
+
 def _is_admin(user_id: int, settings: Settings) -> bool:
     return user_id in settings.admin_ids
+
 
 @router.callback_query(F.data.startswith("adm:confirm:"))
 async def admin_config(cb: CallbackQuery) -> None:
@@ -38,7 +47,9 @@ async def admin_config(cb: CallbackQuery) -> None:
 
     if b.client_chat_id:
         try:
-            await cb.bot.send_message(b.client_chat_id, f"Заявка #{b.id} подтверждена. Ждем вас!")
+            await cb.bot.send_message(
+                b.client_chat_id, f"Заявка #{b.id} подтверждена. Ждем вас!"
+            )
         except Exception:
             pass
 
@@ -65,15 +76,62 @@ async def admin_reject(cb: CallbackQuery) -> None:
     REPO.update(b)
 
     try:
-        await cb.message.edit_text(cb.message.text + "\n\nСтатус: 🛑 отклонено админом.")
+        await cb.message.edit_text(
+            cb.message.text + "\n\nСтатус: 🛑 отклонено админом."
+        )
     except Exception:
         pass
 
     if b.client_chat_id:
         try:
-            await cb.bot.send_message(b.client_chat_id, f"Заявка #{b.id} отклонина администратором.")
+            await cb.bot.send_message(
+                b.client_chat_id, f"Заявка #{b.id} отклонина администратором."
+            )
         except Exception:
             pass
 
     await cb.answer("Отклонено.")
 
+
+@router.message(CommandFilter("report"))
+async def admin_report(message: Message) -> None:
+    settings = Settings()
+
+    if message.from_user.id not in settings.admin_ids:
+        await message.answer("❌ Недостаточно прав.")
+        return
+
+    tz = ZoneInfo(settings.APP_TIMEZONE)
+    now = datetime.now(tz)
+
+    text = ["📊 *Отчёт по бронированиям*"]
+    periods = {
+        "Сегодня": now.replace(hour=0, minute=0, second=0, microsecond=0),
+        "Неделя": now - timedelta(days=7),
+        "Месяц": now - timedelta(days=30),
+    }
+
+    for label, start in periods.items():
+        bookings = [b for b in REPO.all() if b.starts_at >= start]
+        total = len(bookings)
+        if total == 0:
+            text.append(f"\n*{label}:* — нет заявок")
+            continue
+
+        stats: dict[str, int] = {}
+        for b in bookings:
+            stats[b.status] = stats.get(b.status, 0) + 1
+
+        confirmed = stats.get(BookingStatus.confirmed, 0)
+        load = confirmed / total * 100
+
+        text.append(
+            f"\n*{label}:* {total} заявок\n"
+            f"✅ Подтверждено: {confirmed}\n"
+            f"🕒 На рассмотрении: {stats.get(BookingStatus.pending_review, 0)}\n"
+            f"❌ Отменено: {stats.get(BookingStatus.cancelled_by_admin, 0)}\n"
+            f"⌛ Истекло: {stats.get(BookingStatus.expired, 0)}\n"
+            f"📈 Загрузка: {load:.1f}%"
+        )
+
+    await message.answer("\n".join(text), parse_mode=ParseMode.MARKDOWN)
