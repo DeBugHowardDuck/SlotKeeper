@@ -10,7 +10,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 
 from slotkeeper.config import Settings
-from slotkeeper.core.booking.shared import REPO
+from slotkeeper.core.booking.shared import repo_scope
 from slotkeeper.core.booking.models import BookingStatus
 from slotkeeper.ui.keyboards import contact_kb
 
@@ -22,24 +22,25 @@ def _is_admin(user_id: int, settings: Settings) -> bool:
 
 
 @router.callback_query(F.data.startswith("adm:confirm:"))
-async def admin_config(cb: CallbackQuery) -> None:
+async def admin_confirm(cb: CallbackQuery) -> None:
     settings = Settings()
-    if not _is_admin(cb.from_user.id, settings):
+    if cb.from_user.id not in settings.admin_ids:
         await cb.answer("Недостаточно прав.", show_alert=True)
         return
 
     booking_id = int(cb.data.split(":")[-1])
-    b = REPO.get(booking_id)
-    if not b:
-        await cb.answer("Заявка не найдена.", show_alert=True)
-        return
 
-    if b.status not in {BookingStatus.pending_review}:
-        await cb.answer(f"Статус уже {b.status}.", show_alert=True)
-        return
+    with repo_scope() as repo:
+        b = repo.get(booking_id)
+        if not b:
+            await cb.answer("Заявка не найдена.", show_alert=True)
+            return
+        if b.status != BookingStatus.pending_review:
+            await cb.answer(f"Статус уже {b.status}.", show_alert=True)
+            return
 
-    b.status = BookingStatus.confirmed
-    REPO.update(b)
+        b.status = BookingStatus.confirmed
+        repo.update(b)
 
     try:
         await cb.message.edit_text(cb.message.text + "\n\nСтатус: ✅ подтверждено.")
@@ -55,9 +56,9 @@ async def admin_config(cb: CallbackQuery) -> None:
                     f"📝 Заявка #{b.id}\n"
                     f"🕓 {b.starts_at:%Y-%m-%d %H:%M} – {b.ends_at:%H:%M}\n\n"
                     f"ℹ️ Информация о месте:\n"
-                    f"📍 Адрес: {settings.PLACE_ADDRESS}\n"
-                    f"🗺 <a href='{settings.PLACE_MAP_URL}'>Открыть в карте</a>\n\n"
-                    f"💬 Если возникнут вопросы — нажмите кнопку ниже."
+                    f"📍 Адрес: {Settings().PLACE_ADDRESS}\n"
+                    f"🗺 <a href='{Settings().PLACE_MAP_URL}'>Открыть в карте</a>\n\n"
+                    f"Если что-то нужно — жмите кнопку ниже."
                 ),
                 reply_markup=contact_kb(),
                 parse_mode="HTML",
@@ -71,34 +72,33 @@ async def admin_config(cb: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("adm:reject:"))
 async def admin_reject(cb: CallbackQuery) -> None:
     settings = Settings()
-    if not _is_admin(cb.from_user.id, settings):
-        await cb.answer("Ндостаточно прав.", show_alert=True)
+    if cb.from_user.id not in settings.admin_ids:
+        await cb.answer("Недостаточно прав.", show_alert=True)
         return
 
     booking_id = int(cb.data.split(":")[-1])
-    b = REPO.get(booking_id)
-    if not b:
-        await cb.answer("Заявка не найдена.", show_alert=True)
-        return
-    if b.status != BookingStatus.pending_review:
-        await cb.answer(f"Статус уже {b.status}.", show_alert=True)
-        return
 
-    b.status = BookingStatus.cancelled_by_admin
-    REPO.update(b)
+    from slotkeeper.core.booking.shared import repo_scope
+    with repo_scope() as repo:
+        b = repo.get(booking_id)
+        if not b:
+            await cb.answer("Заявка не найдена.", show_alert=True)
+            return
+        if b.status != BookingStatus.pending_review:
+            await cb.answer(f"Статус уже {b.status}.", show_alert=True)
+            return
+
+        b.status = BookingStatus.cancelled_by_admin
+        repo.update(b)
 
     try:
-        await cb.message.edit_text(
-            cb.message.text + "\n\nСтатус: 🛑 отклонено админом."
-        )
+        await cb.message.edit_text(cb.message.text + "\n\nСтатус: 🛑 отклонено админом.")
     except Exception:
         pass
 
     if b.client_chat_id:
         try:
-            await cb.bot.send_message(
-                b.client_chat_id, f"Заявка #{b.id} отклонина администратором."
-            )
+            await cb.bot.send_message(b.client_chat_id, f"Заявка #{b.id} отклонена администратором.")
         except Exception:
             pass
 
@@ -116,6 +116,9 @@ async def admin_report(message: Message) -> None:
     tz = ZoneInfo(settings.APP_TIMEZONE)
     now = datetime.now(tz)
 
+    with repo_scope() as repo:
+        all_bookings = repo.all()
+
     text = ["📊 *Отчёт по бронированиям*"]
     periods = {
         "Сегодня": now.replace(hour=0, minute=0, second=0, microsecond=0),
@@ -124,7 +127,8 @@ async def admin_report(message: Message) -> None:
     }
 
     for label, start in periods.items():
-        bookings = [b for b in REPO.all() if b.starts_at >= start]
+        bookings = [b for b in all_bookings if b.starts_at >= start]
+
         total = len(bookings)
         if total == 0:
             text.append(f"\n*{label}:* — нет заявок")

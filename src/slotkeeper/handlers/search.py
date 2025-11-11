@@ -9,13 +9,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from slotkeeper.config import Settings
-from slotkeeper.core.availability import generate_slots_for_day
 from slotkeeper.core.booking.models import BookingStatus, Booking, Customer
 from slotkeeper.fsm.states import ClientFlow
 
-from slotkeeper.core.booking.shared import REPO
-from slotkeeper.core.notify.notifier import NOTIFY
-from slotkeeper.ui.keyboards import times_kb, admin_booking_actions_kb, duration_kb, contact_kb
+from slotkeeper.core.booking.shared import repo_scope
+
+from slotkeeper.ui.keyboards import times_kb, admin_booking_actions_kb, duration_kb
 import re
 from datetime import date
 from dataclasses import dataclass
@@ -25,16 +24,18 @@ from slotkeeper.ui.keyboards import month_kb
 from typing import Optional
 
 DISPLAY_START_HOUR = 9
-DISPLAY_END_HOUR   = 22
+DISPLAY_END_HOUR = 22
 
 router = Router()
 
 _DATE_RE = re.compile(r"^\s*(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})\s*$")
 
+
 @dataclass
 class Span:
     start: datetime
     end: datetime
+
 
 def _safe_bd_this_year(bd: date, year: int) -> date:
     try:
@@ -42,15 +43,16 @@ def _safe_bd_this_year(bd: date, year: int) -> date:
     except ValueError:
         return date(year, 2, 28)
 
-def in_birthday_window(picked: date, birth_iso: Optional[str], window_days: int = 7) -> tuple[bool, date, date]:
 
+def in_birthday_window(picked: date, birth_iso: Optional[str], window_days: int = 7) -> tuple[bool, date, date]:
     if not birth_iso:
         return (False, picked, picked)
     bd = datetime.fromisoformat(birth_iso).date()
     anchor = _safe_bd_this_year(bd, picked.year)
     start = anchor - timedelta(days=window_days)
-    end   = anchor + timedelta(days=window_days)
+    end = anchor + timedelta(days=window_days)
     return (start <= picked <= end, start, end)
+
 
 def merge_spans(spans: list[Span]) -> list[Span]:
     if not spans:
@@ -65,12 +67,13 @@ def merge_spans(spans: list[Span]) -> list[Span]:
             merged.append(s)
     return merged
 
+
 def calc_free_starts(
-    day_start: datetime,
-    day_end: datetime,
-    busy: list[Span],
-    step: timedelta,
-    min_duration: timedelta,
+        day_start: datetime,
+        day_end: datetime,
+        busy: list[Span],
+        step: timedelta,
+        min_duration: timedelta,
 ) -> list[datetime]:
     busy = merge_spans(busy)
     t = day_start
@@ -86,9 +89,9 @@ def calc_free_starts(
         t += step
     return out
 
+
 def _visible_starts(starts: list[datetime]) -> list[datetime]:
     return [dt for dt in starts if DISPLAY_START_HOUR <= dt.hour < DISPLAY_END_HOUR]
-
 
 
 @router.message(StateFilter(ClientFlow.Summary))
@@ -122,13 +125,14 @@ async def manual_date_input(message: Message, state: FSMContext) -> None:
         )
 
     busy = []
-    for b in REPO.all():
-        if b.status not in {BookingStatus.confirmed, BookingStatus.pending_review}:
-            continue
-        if b.starts_at < day_end and (b.ends_at + post_buf) > day_start:
-            start = max(b.starts_at, day_start)
-            end = min(b.ends_at + post_buf, day_end)
-            busy.append(type("TS", (), {"start": start, "end": end})())
+    with repo_scope() as REPO:
+        for b in REPO.all():
+            if b.status not in {BookingStatus.confirmed, BookingStatus.pending_review}:
+                continue
+            if b.starts_at < day_end and (b.ends_at + post_buf) > day_start:
+                start = max(b.starts_at, day_start)
+                end = min(b.ends_at + post_buf, day_end)
+                busy.append(type("TS", (), {"start": start, "end": end})())
 
     step = timedelta(hours=1)
     min_duration = timedelta(minutes=settings.SLOT_DEFAULT_MIN)
@@ -145,6 +149,7 @@ async def manual_date_input(message: Message, state: FSMContext) -> None:
         reply_markup=times_kb(iso_list),
         parse_mode="HTML",
     )
+
 
 @router.message(StateFilter(ClientFlow.Summary))
 async def after_summary_show_calendar(message: Message, state: FSMContext) -> None:
@@ -205,7 +210,7 @@ async def pick_day(cb: CallbackQuery, state: FSMContext) -> None:
     picked_date = datetime.fromisoformat(cb.data.split(":", 1)[1]).date()
 
     day_start = datetime.combine(picked_date, datetime.min.time()).replace(tzinfo=tz)
-    day_end   = day_start + timedelta(days=1)
+    day_end = day_start + timedelta(days=1)
     post_buf = timedelta(minutes=settings.CLEANING_POST_MIN)
 
     data = await state.get_data()
@@ -219,13 +224,14 @@ async def pick_day(cb: CallbackQuery, state: FSMContext) -> None:
         )
 
     busy: list[Span] = []
-    for b in REPO.all():
-        if b.status not in {BookingStatus.confirmed, BookingStatus.pending_review}:
-            continue
-        if b.starts_at < day_end and (b.ends_at + post_buf) > day_start:
-            start = max(b.starts_at, day_start)
-            end = min(b.ends_at + post_buf, day_end)
-            busy.append(Span(start=start, end=end))
+    with repo_scope() as REPO:
+        for b in REPO.all():
+            if b.status not in {BookingStatus.confirmed, BookingStatus.pending_review}:
+                continue
+            if b.starts_at < day_end and (b.ends_at + post_buf) > day_start:
+                start = max(b.starts_at, day_start)
+                end = min(b.ends_at + post_buf, day_end)
+                busy.append(Span(start=start, end=end))
 
     step = timedelta(hours=1)
     min_duration = timedelta(minutes=settings.SLOT_DEFAULT_MIN)
@@ -244,6 +250,7 @@ async def pick_day(cb: CallbackQuery, state: FSMContext) -> None:
         parse_mode="HTML",
     )
     await cb.answer()
+
 
 @router.callback_query(StateFilter(ClientFlow.Summary), F.data.startswith("tm:"))
 async def pick_time(cb: CallbackQuery, state: FSMContext) -> None:
@@ -281,12 +288,13 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
     end_dt = start_dt + timedelta(hours=hours)
 
     post_buf = timedelta(minutes=settings.CLEANING_POST_MIN)
-    for b in REPO.conflicts(start_dt, end_dt + post_buf):
-        await cb.message.answer(
-            "Этот интервал конфликтует с существующей бронью/клинингом. Выбери другое время."
-        )
-        await cb.answer()
-        return
+    with repo_scope() as REPO:
+        for b in REPO.conflicts(start_dt, end_dt + post_buf):
+            await cb.message.answer(
+                "Этот интервал конфликтует с существующей бронью/клинингом. Выбери другое время."
+            )
+            await cb.answer()
+            return
 
     data = await state.get_data()
     selected_services = data.get("services", [])
@@ -304,38 +312,42 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
         status=BookingStatus.draft,
         client_chat_id=(cb.message.chat.id if cb.message else cb.from_user.id),
     )
-    booking = REPO.add(booking)
-    booking.set_hold(minutes=settings.HOLD_MINUTES, tz=settings.APP_TIMEZONE)
-    REPO.update(booking)
 
-    NOTIFY.schedule_hold_warning(booking.id)
+    with repo_scope() as repo:
 
-    admin_text = (
-        "🎟️ <b>Новая заявка!</b>\n\n"
-        f"🕓 Интервал: {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}\n\n"
-        f"👤 Имя: {fullname}\n"
-        f"📞 Телефон: {phone}\n\n"
-        f"👥 Гостей: {guests}\n"
-        f"🧾 Услуги: {services_text}\n\n"
-        f"🎂 Скидка по ДР: {bd_line}\n"
-    )
+        booking = repo.add(booking, services=selected_services)
+        booking.set_hold(minutes=settings.HOLD_MINUTES, tz=settings.APP_TIMEZONE)
+        repo.update(booking)
+        booking_id = booking.id
 
-    for admin_id in settings.admin_ids:
-        try:
-            await cb.bot.send_message(
-                admin_id, admin_text, reply_markup=admin_booking_actions_kb(booking.id)
-            )
-        except Exception:
-            pass
+        admin_text = (
+            "🎟️ <b>Новая заявка!</b>\n\n"
+            f"🕓 Интервал: {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}\n\n"
+            f"👤 Имя: {fullname}\n"
+            f"📞 Телефон: {phone}\n\n"
+            f"👥 Гостей: {guests}\n"
+            f"🧾 Услуги: {services_text}\n\n"
+            f"🎂 Скидка по ДР: {bd_line}\n"
+        )
 
-    await cb.message.answer(
-        f"⏳📝 Заявка # {booking.id} в обработке:\n\n"
-        f"🕓 {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}.\n\n"
-        f"💬 Я напишу, как только администратор подтвердит бронирование."
-    )
+        for admin_id in settings.admin_ids:
+            try:
+                await cb.bot.send_message(
+                    admin_id,
+                    admin_text,
+                    reply_markup=admin_booking_actions_kb(booking_id),
+                )
+            except Exception:
+                pass
 
-    await state.set_state(ClientFlow.WaitAdmin)
-    await cb.answer()
+        await cb.message.answer(
+            f"⏳📝 Заявка # {booking.id} в обработке:\n\n"
+            f"🕓 {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}.\n\n"
+            f"💬 Я напишу, как только администратор подтвердит бронирование."
+        )
+
+        await state.set_state(ClientFlow.WaitAdmin)
+        await cb.answer()
 
 
 @router.callback_query(F.data == "contact_admin")

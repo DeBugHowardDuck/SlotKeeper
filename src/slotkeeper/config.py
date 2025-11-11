@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     BOT_TOKEN: str
     APP_TIMEZONE: str = "Europe/Moscow"
     REDIS_URL: str | None = None
+    DATABASE_URL: str | None = None
     HOLD_MINUTES: int = 30
     HOLD_WARN_BEFORE_MIN: int = 5
     ADMIN_IDS: str = ""
