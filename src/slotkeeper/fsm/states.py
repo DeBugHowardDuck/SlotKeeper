@@ -8,8 +8,10 @@ class ClientFlow(StatesGroup):
 
     ContactCollect = State()
     ContactPhone = State()
+    BirthDate = State()
     GuestsCount = State()
     Summary = State()
+    Services = State()
     PickDuration = State()
 
     Submit = State()

@@ -22,6 +22,8 @@ from dataclasses import dataclass
 
 from slotkeeper.ui.keyboards import month_kb
 
+from typing import Optional
+
 DISPLAY_START_HOUR = 9
 DISPLAY_END_HOUR   = 22
 
@@ -34,6 +36,21 @@ class Span:
     start: datetime
     end: datetime
 
+def _safe_bd_this_year(bd: date, year: int) -> date:
+    try:
+        return date(year, bd.month, bd.day)
+    except ValueError:
+        return date(year, 2, 28)
+
+def in_birthday_window(picked: date, birth_iso: Optional[str], window_days: int = 7) -> tuple[bool, date, date]:
+
+    if not birth_iso:
+        return (False, picked, picked)
+    bd = datetime.fromisoformat(birth_iso).date()
+    anchor = _safe_bd_this_year(bd, picked.year)
+    start = anchor - timedelta(days=window_days)
+    end   = anchor + timedelta(days=window_days)
+    return (start <= picked <= end, start, end)
 
 def merge_spans(spans: list[Span]) -> list[Span]:
     if not spans:
@@ -94,6 +111,16 @@ async def manual_date_input(message: Message, state: FSMContext) -> None:
 
     post_buf = timedelta(minutes=settings.CLEANING_POST_MIN)
 
+    data = await state.get_data()
+    eligible, win_start, win_end = in_birthday_window(picked, data.get("birth_date"), window_days=7)
+
+    badge = ""
+    if eligible:
+        badge = (
+            "🎉 <b>Вы попадаете в окно скидки по ДР!</b>\n"
+            f"Действует: {win_start.strftime('%d.%m.%Y')} — {win_end.strftime('%d.%m.%Y')}\n\n"
+        )
+
     busy = []
     for b in REPO.all():
         if b.status not in {BookingStatus.confirmed, BookingStatus.pending_review}:
@@ -114,8 +141,9 @@ async def manual_date_input(message: Message, state: FSMContext) -> None:
 
     iso_list = [dt.isoformat() for dt in free_starts]
     await message.answer(
-        f"⌚ Выберите время: ",
+        badge + "⌚ Выберите время:",
         reply_markup=times_kb(iso_list),
+        parse_mode="HTML",
     )
 
 @router.message(StateFilter(ClientFlow.Summary))
@@ -180,6 +208,16 @@ async def pick_day(cb: CallbackQuery, state: FSMContext) -> None:
     day_end   = day_start + timedelta(days=1)
     post_buf = timedelta(minutes=settings.CLEANING_POST_MIN)
 
+    data = await state.get_data()
+    eligible, win_start, win_end = in_birthday_window(picked_date, data.get("birth_date"), window_days=7)
+
+    badge = ""
+    if eligible:
+        badge = (
+            "🎉 <b>Вы попадаете в окно скидки по ДР!</b>\n"
+            f"Действует: {win_start.strftime('%d.%m.%Y')} — {win_end.strftime('%d.%m.%Y')}\n\n"
+        )
+
     busy: list[Span] = []
     for b in REPO.all():
         if b.status not in {BookingStatus.confirmed, BookingStatus.pending_review}:
@@ -201,8 +239,9 @@ async def pick_day(cb: CallbackQuery, state: FSMContext) -> None:
 
     iso_list = [dt.isoformat() for dt in free_starts]
     await cb.message.answer(
-        f"⌚ Выберите время: ",
+        badge + "⌚ Выберите время:",
         reply_markup=times_kb(iso_list),
+        parse_mode="HTML",
     )
     await cb.answer()
 
@@ -249,6 +288,14 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
         await cb.answer()
         return
 
+    data = await state.get_data()
+    selected_services = data.get("services", [])
+    services_text = ", ".join(selected_services) if selected_services else "—"
+
+    data = await state.get_data()
+    eligible, win_start, win_end = in_birthday_window(start_dt.date(), data.get("birth_date"), window_days=7)
+    bd_line = "да" if eligible else "нет"
+
     booking = Booking(
         id=0,
         customer=Customer(full_name=fullname, phone=phone, guests=guests),
@@ -265,13 +312,12 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
 
     admin_text = (
         "🎟️ <b>Новая заявка!</b>\n\n"
-        f"👤 Имя: {booking.customer.full_name}\n"
-        f"📞 Телефон: {booking.customer.phone}\n"
-        f"👥 Гостей: {booking.customer.guests}\n"
         f"🕓 Интервал: {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}\n\n"
-        f"🧹 Клининг после: {settings.CLEANING_POST_MIN} мин\n"
-        f"⏳ Холд: {settings.HOLD_MINUTES} мин\n"
-        f"📍 Статус: {booking.status}\n"
+        f"👤 Имя: {fullname}\n"
+        f"📞 Телефон: {phone}\n\n"
+        f"👥 Гостей: {guests}\n"
+        f"🧾 Услуги: {services_text}\n\n"
+        f"🎂 Скидка по ДР: {bd_line}\n"
     )
 
     for admin_id in settings.admin_ids:
@@ -283,18 +329,9 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
             pass
 
     await cb.message.answer(
-        f"Заявка # {booking.id} в обработке:\n\n"
+        f"⏳📝 Заявка # {booking.id} в обработке:\n\n"
         f"🕓 {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}.\n\n"
         f"💬 Я напишу, как только администратор подтвердит бронирование."
-    )
-
-    await cb.message.answer(
-        f"ℹ️ Информация о месте\n"
-        f"📍 Адрес: {settings.PLACE_ADDRESS}\n\n"
-        f"🗺 [Открыть в карте]({settings.PLACE_MAP_URL})\n\n"
-        f"💬 Если возникнут вопросы — нажми кнопку ниже.",
-        reply_markup=contact_kb(),
-        parse_mode="Markdown"
     )
 
     await state.set_state(ClientFlow.WaitAdmin)

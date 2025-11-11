@@ -153,3 +153,15 @@ def contact_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💬 Связаться с менеджером", callback_data="contact_admin")]
     ])
+
+
+def services_kb(services: list[str], selected: list[str]) -> InlineKeyboardMarkup:
+    buttons = []
+    for i, service in enumerate(services):
+        mark = "✅ " if service in selected else ""
+        buttons.append([InlineKeyboardButton(
+            text=f"{mark}{service}",
+            callback_data=f"svc:{i}"
+        )])
+    buttons.append([InlineKeyboardButton(text="✅ Готово", callback_data="svc:done")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
