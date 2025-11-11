@@ -15,7 +15,7 @@ from slotkeeper.fsm.states import ClientFlow
 
 from slotkeeper.core.booking.shared import REPO
 from slotkeeper.core.notify.notifier import NOTIFY
-from slotkeeper.ui.keyboards import times_kb, admin_booking_actions_kb, duration_kb
+from slotkeeper.ui.keyboards import times_kb, admin_booking_actions_kb, duration_kb, contact_kb
 import re
 from datetime import date
 from dataclasses import dataclass
@@ -114,7 +114,7 @@ async def manual_date_input(message: Message, state: FSMContext) -> None:
 
     iso_list = [dt.isoformat() for dt in free_starts]
     await message.answer(
-        f"Доступные старты на {picked.isoformat()} (по часу):",
+        f"⌚ Выберите время: ",
         reply_markup=times_kb(iso_list),
     )
 
@@ -201,7 +201,7 @@ async def pick_day(cb: CallbackQuery, state: FSMContext) -> None:
 
     iso_list = [dt.isoformat() for dt in free_starts]
     await cb.message.answer(
-        f"Доступные старты на {picked_date.isoformat()} (по часу):",
+        f"⌚ Выберите время: ",
         reply_markup=times_kb(iso_list),
     )
     await cb.answer()
@@ -216,7 +216,7 @@ async def pick_time(cb: CallbackQuery, state: FSMContext) -> None:
 
     hours = [int(x) for x in settings.SLOT_PRESETS_HOURS.split(",") if x.strip()]
     await cb.message.answer(
-        "Выбери длительность брони:", reply_markup=duration_kb(hours)
+        "⌛ Выбери <b>длительность брони</b>:", reply_markup=duration_kb(hours)
     )
     await state.set_state(ClientFlow.PickDuration)
     await cb.answer()
@@ -264,13 +264,16 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
     NOTIFY.schedule_hold_warning(booking.id)
 
     admin_text = (
-        f"Новая заявка #{booking.id}\n"
-        f"Интервал: {start_dt.strftime('%Y-%m-%d %H:%M')} – {end_dt.strftime('%Y-%m-%d %H:%M')}\n"
-        f"Клиент: {fullname}\nТелефон: {phone}\nГостей: {guests}\n"
-        f"Статус: {booking.status}\n"
-        f"Клининг: +{settings.CLEANING_POST_MIN} мин после окончания\n"
-        f"Холд до: {booking.hold_deadline.strftime('%H:%M') if booking.hold_deadline else '—'}"
+        "🎟️ <b>Новая заявка!</b>\n\n"
+        f"👤 Имя: {booking.customer.full_name}\n"
+        f"📞 Телефон: {booking.customer.phone}\n"
+        f"👥 Гостей: {booking.customer.guests}\n"
+        f"🕓 Интервал: {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}\n\n"
+        f"🧹 Клининг после: {settings.CLEANING_POST_MIN} мин\n"
+        f"⏳ Холд: {settings.HOLD_MINUTES} мин\n"
+        f"📍 Статус: {booking.status}\n"
     )
+
     for admin_id in settings.admin_ids:
         try:
             await cb.bot.send_message(
@@ -280,11 +283,50 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
             pass
 
     await cb.message.answer(
-        f"Заявка #{booking.id}: {start_dt:%Y-%m-%d %H:%M} – {end_dt:%Y-%m-%d %H:%M}. "
-        f"После брони резервируем {settings.CLEANING_POST_MIN} мин на клининг. "
-        f"Холд {settings.HOLD_MINUTES} мин, статус: {booking.status}."
+        f"Заявка # {booking.id} в обработке:\n\n"
+        f"🕓 {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}.\n\n"
+        f"💬 Я напишу, как только администратор подтвердит бронирование."
     )
+
+    await cb.message.answer(
+        f"ℹ️ Информация о месте\n"
+        f"📍 Адрес: {settings.PLACE_ADDRESS}\n\n"
+        f"🗺 [Открыть в карте]({settings.PLACE_MAP_URL})\n\n"
+        f"💬 Если возникнут вопросы — нажми кнопку ниже.",
+        reply_markup=contact_kb(),
+        parse_mode="Markdown"
+    )
+
     await state.set_state(ClientFlow.WaitAdmin)
     await cb.answer()
 
 
+@router.callback_query(F.data == "contact_admin")
+async def contact_admin_callback(cb: CallbackQuery, state: FSMContext):
+    settings = Settings()
+    data = await state.get_data()
+    fullname = data.get("fullname", cb.from_user.full_name or "—")
+    phone = data.get("phone", "не указан")
+    guests = data.get("guests", "—")
+
+    await cb.message.answer(
+        "✅ Мы уведомили администратора — он скоро с тобой свяжется."
+    )
+
+    for admin_id in settings.admin_ids:
+        try:
+            await cb.bot.send_message(
+                admin_id,
+                (
+                    "📞 <b>Запрос связи от клиента</b>\n\n"
+                    f"👤 Имя: {fullname}\n"
+                    f"📱 Телефон: {phone}\n"
+                    f"👥 Гостей: {guests}\n"
+                    f"💬 Telegram: @{cb.from_user.username or '—'}\n"
+                    f"🆔 ID: <code>{cb.from_user.id}</code>"
+                ),
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+    await cb.answer()

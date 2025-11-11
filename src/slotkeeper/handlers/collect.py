@@ -21,27 +21,30 @@ async def got_fullname_ask_phone(message: Message, state: FSMContext) -> None:
     fullname = " ".join(message.text.split())
     if len(fullname) < 3 or " " not in fullname:
         await message.answer(
-            "Нужно ввести имя и фамилию через пробел. Пример: Иван Петров"
+            "✍️ Нужно указать **имя и фамилию** через пробел.\n"
+            "Например: <b>Анна Смирнова</b>."
         )
         return
 
     await state.update_data(fullname=message.text.strip())
     await state.set_state(ClientFlow.ContactPhone)
-    await message.answer("Введи номер телефона в формате +79001234567.")
-
+    await message.answer(
+        "📱 Укажи номер телефона в формате <b>+79001234567</b>.\n"
+        "Номер нужен для подтверждения брони."
+    )
 
 @router.message(StateFilter(ClientFlow.ContactPhone))
 async def got_phone_ask_guests(message: Message, state: FSMContext) -> None:
-    phone = message.text.strip()
+    phone = (message.text or "").strip()
     if not is_phone(phone):
         await message.answer(
-            "Номер не похож на реальный. Пример: +79001234567. Попробуй ещё раз."
+            "🤔 Номер не похож на реальный. Пример: <b>+79001234567</b>.\n"
+            "Попробуй ещё раз."
         )
         return
-
     await state.update_data(phone=phone)
     await state.set_state(ClientFlow.GuestsCount)
-    await message.answer("Сколько гостей придёт? Введи число от 1 до 12.")
+    await message.answer("👥 Сколько вас будет? Введи число от <b>1 до 12</b>.")
 
 
 @router.message(StateFilter(ClientFlow.GuestsCount))
@@ -56,10 +59,10 @@ async def got_guests_show_summary(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     await message.answer(
         "Сводка заявки:\n"
-        f"Имя: {data.get('fullname')}\n"
-        f"Телефон: {data.get('phone')}\n"
-        f"Гостей: {data.get('guests')}\n\n"
-        "Статус: draft. Дальше выберем дату и время."
+        f"👤 Имя: {data.get('fullname')}\n"
+        f"📞 Телефон: {data.get('phone')}\n"
+        f"👥 Гостей: {data.get('guests')}\n\n"
+        "Теперь выберем <b>день</b> и <b>время</b> 🗓️"
     )
 
     settings = Settings()
@@ -73,7 +76,7 @@ async def got_guests_show_summary(message: Message, state: FSMContext) -> None:
     max_day = date(max_year, max_month, 1) - timedelta(days=1)
 
     await message.answer(
-        "Выбери день на календаре или введи дату текстом в формате ДД.ММ.ГГГГ.",
+        "📆 Выбери день на календаре или введи дату <b>ДД.ММ.ГГГГ</b>.",
         reply_markup=month_kb(
             y, m, settings.APP_TIMEZONE, min_date=today, max_date=max_day
         ),

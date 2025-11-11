@@ -57,7 +57,6 @@ class Notifier:
             except asyncio.CancelledError:
                 return
 
-        # обновим состояние
         b2 = REPO.get(booking_id)
         if not b2 or b2.status != "pending_review" or not b2.hold_deadline:
             return

@@ -3,29 +3,34 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery
 
 from ..fsm.states import ClientFlow
+from ..ui.keyboards import start_kb
 
 router = Router()
+
+WELCOME = (
+    "👋 Привет!\n"
+    "Здесь можно <b>забронировать помещение</b> без звонков и бюрократии.\n\n"
+    "Нажми кнопку ниже, и я за минуту соберу нужные данные и покажу свободное время.👇"
+)
 
 
 @router.message(CommandStart())
 async def start_cmd(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer(
-        "Привет! Я SlotKeeper. Помогаю бронировать слоты без оплаты в боте.\n"
-        "Готов пройтись по правилам? Напиши «Ок» или нажми /ok"
-    )
-    await state.set_state(ClientFlow.ConsentRules)
+    await message.answer(WELCOME, reply_markup=start_kb())
 
-
-@router.message(Command("ok"))
-@router.message(StateFilter(ClientFlow.ConsentRules), F.text.casefold() == "ок")
-@router.message(StateFilter(ClientFlow.ConsentRules), F.text.casefold() == "ok")
-async def accept_rules(message: Message, state: FSMContext) -> None:
+@router.callback_query(F.data == "start_booking")
+async def start_booking(cb: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
     await state.set_state(ClientFlow.ContactCollect)
-    await message.answer("Окей. Введи, пожалуйста, своё имя.")
+    await cb.message.answer(
+        "💬 Как к тебе обращаться?\n"
+        "Напиши имя и фамилию через пробел. Пример: <b>Иван Петров</b>."
+    )
+    await cb.answer()
 
 
 @router.message(StateFilter(None))

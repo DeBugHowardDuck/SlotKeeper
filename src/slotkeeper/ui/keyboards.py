@@ -5,6 +5,12 @@ from datetime import datetime, date
 from zoneinfo import ZoneInfo
 
 
+def start_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Начать бронирование", callback_data="start_booking")]
+    ])
+
+
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -14,19 +20,21 @@ def main_menu_kb() -> InlineKeyboardMarkup:
     )
 
 
-def weekdays_kb(today: datetime) -> InlineKeyboardMarkup:
-    names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-    rows = []
-    for i in range(7):
-        d = today.date().toordinal() + i
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=f"{names[(today.weekday() + i) % 7]}", callback_data=f"wk:{d}"
-                )
-            ]
-        )
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+#
+#
+# def weekdays_kb(today: datetime) -> InlineKeyboardMarkup:
+#     names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+#     rows = []
+#     for i in range(7):
+#         d = today.date().toordinal() + i
+#         rows.append(
+#             [
+#                 InlineKeyboardButton(
+#                     text=f"{names[(today.weekday() + i) % 7]}", callback_data=f"wk:{d}"
+#                 )
+#             ]
+#         )
+#     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def times_kb(iso_list: list[str]) -> InlineKeyboardMarkup:
@@ -43,15 +51,15 @@ def times_kb(iso_list: list[str]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def messenger_kb() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Telegram", callback_data="msgr:tg")],
-            [InlineKeyboardButton(text="WhatsApp", callback_data="msgr:wa")],
-            [InlineKeyboardButton(text="Звонок", callback_data="msgr:call")],
-        ]
-    )
-
+# def messenger_kb() -> InlineKeyboardMarkup:
+#     return InlineKeyboardMarkup(
+#         inline_keyboard=[
+#             [InlineKeyboardButton(text="Telegram", callback_data="msgr:tg")],
+#             [InlineKeyboardButton(text="WhatsApp", callback_data="msgr:wa")],
+#             [InlineKeyboardButton(text="Звонок", callback_data="msgr:call")],
+#         ]
+#     )
+#
 
 def admin_booking_actions_kb(booking_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
@@ -69,7 +77,7 @@ def admin_booking_actions_kb(booking_id: int) -> InlineKeyboardMarkup:
 
 
 def month_kb(
-    year: int, month: int, tz_name: str, min_date: date, max_date: date
+        year: int, month: int, tz_name: str, min_date: date, max_date: date
 ) -> InlineKeyboardMarkup:
     tz = ZoneInfo(tz_name)
     days_in_month = monthrange(year, month)[1]
@@ -139,3 +147,9 @@ def duration_kb(hours_list: list[int]) -> InlineKeyboardMarkup:
     if row:
         rows.append(row)
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def contact_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Связаться с менеджером", callback_data="contact_admin")]
+    ])

@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     SLOT_STEP_MIN: int = 30
     SLOT_DEFAULT_MIN: int = 120
     SLOT_PRESETS_HOURS: str = "2,3,4,5,6,7,8,10,12,24"
+    PLACE_ADDRESS: str = "Липецк, Набережная 12"
+    PLACE_MAP_URL: str = "https://goo.gl/maps/your_link_here"
+    ADMIN_CONTACT: str = "t.me/your_admin_username"
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"

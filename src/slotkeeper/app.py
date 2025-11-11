@@ -6,6 +6,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
 from redis.asyncio import from_url as redis_from_url
 
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 from slotkeeper.config import Settings
 from slotkeeper.core.booking.hold import HoldManager
 from slotkeeper.core.booking.repo import InMemoryBookingRepo
@@ -28,7 +30,10 @@ async def run() -> None:
     )
 
     settings = Settings()
-    bot = Bot(token=settings.BOT_TOKEN)
+    bot = Bot(
+        token=settings.BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
 
     if settings.REDIS_URL:
         redis = redis_from_url(settings.REDIS_URL, decode_responses=True)
