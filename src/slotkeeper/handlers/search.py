@@ -14,12 +14,18 @@ from slotkeeper.fsm.states import ClientFlow
 
 from slotkeeper.core.booking.shared import repo_scope
 
-from slotkeeper.ui.keyboards import times_kb, admin_booking_actions_kb, duration_kb
 import re
 from datetime import date
 from dataclasses import dataclass
+from slotkeeper.ui.keyboards import (
+    times_kb,
+    admin_booking_actions_kb,
+    duration_kb,
+    month_kb,
+    start_kb,
+)
 
-from slotkeeper.ui.keyboards import month_kb
+
 
 from typing import Optional
 
@@ -321,7 +327,7 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
         booking_id = booking.id
 
         admin_text = (
-            "🎟️ <b>Новая заявка!</b>\n\n"
+            f"🎟️ <b>Новая заявка! # {booking.id}</b>\n\n"
             f"🕓 Интервал: {start_dt:%Y-%m-%d %H:%M} – {end_dt:%H:%M}\n\n"
             f"👤 Имя: {fullname}\n"
             f"📞 Телефон: {phone}\n\n"

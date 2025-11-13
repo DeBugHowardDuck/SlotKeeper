@@ -4,6 +4,7 @@ from aiogram import Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
+from slotkeeper.utils.validators import is_phone, parse_guests, normalize_phone
 
 from slotkeeper.fsm.states import ClientFlow
 from slotkeeper.utils.validators import is_phone, parse_guests
@@ -18,29 +19,36 @@ router = Router()
 
 @router.message(StateFilter(ClientFlow.ContactCollect))
 async def got_fullname_ask_phone(message: Message, state: FSMContext) -> None:
-    fullname = " ".join(message.text.split())
-    if len(fullname) < 3 or " " not in fullname:
+    text = (message.text or "").strip()
+    fullname = " ".join(text.split())
+
+    if len(fullname) < 2 or fullname.isdigit():
         await message.answer(
-            "✍️ Нужно указать **имя и фамилию** через пробел.\n"
-            "Например: <b>Анна Смирнова</b>."
+            "✍️ Напишите, пожалуйста, ваше имя.\n"
+            "Например: <b>Анна</b>."
         )
         return
 
-    await state.update_data(fullname=message.text.strip())
+    await state.update_data(fullname=fullname)
     await state.set_state(ClientFlow.ContactPhone)
     await message.answer(
-        "📱 Укажи номер телефона в формате <b>+79001234567</b>.\n"
-        "Номер нужен для подтверждения брони."
+        "Укажи номер телефона. 📱\n"
+        "В формате: <b>8 904 555 01 23</b>."
     )
 
 @router.message(StateFilter(ClientFlow.ContactPhone))
 async def got_phone_ask_birth(message: Message, state: FSMContext) -> None:
-    phone = (message.text or "").strip()
-    if not is_phone(phone):
-        await message.answer("Номер не похож на реальный. Пример: +79001234567.")
+    raw = (message.text or "").strip()
+
+    phone_normalized = normalize_phone(raw)
+    if phone_normalized is None:
+        await message.answer(
+            "Номер не похож на реальный.\n"
+            "Примеры: <b>+7 999 123 45 67</b> или <b>8 999 123 45 67</b>."
+        )
         return
 
-    await state.update_data(phone=phone)
+    await state.update_data(phone=phone_normalized)
     await state.set_state(ClientFlow.BirthDate)
     await message.answer("📅 Укажи дату рождения в формате ДД.ММ.ГГГГ.")
 
@@ -61,6 +69,7 @@ async def got_birth_ask_guests(message: Message, state: FSMContext) -> None:
     await state.set_state(ClientFlow.GuestsCount)
     await message.answer("👥 Сколько вас будет? Введи число от 1 до 12.")
 
+
 @router.message(StateFilter(ClientFlow.GuestsCount))
 async def got_guests_show_services(message: Message, state: FSMContext) -> None:
     guests = parse_guests(message.text)
@@ -75,7 +84,7 @@ async def got_guests_show_services(message: Message, state: FSMContext) -> None:
     available_services = [
         "Просмотр фильмов (экран + проектор)",
         "Sony PlayStation 5",
-        "Караоке (Колонка + 3 микрофона)",
+        "караоке (колонка + 3 микрофона)",
         "Настольные игры",
         "Попкорн",
         "Чай/Кофе",
@@ -89,6 +98,7 @@ async def got_guests_show_services(message: Message, state: FSMContext) -> None:
         "🎬 Выберите услуги, которые хотите включить (можно несколько):",
         reply_markup=services_kb(available_services, [])
     )
+
 
 @router.callback_query(StateFilter(ClientFlow.Services))
 async def got_services(cb: CallbackQuery, state: FSMContext) -> None:
@@ -135,4 +145,3 @@ async def got_services(cb: CallbackQuery, state: FSMContext) -> None:
 
     await cb.message.edit_reply_markup(reply_markup=services_kb(available, selected))
     await cb.answer(f"Выбрано: {len(selected)}")
-

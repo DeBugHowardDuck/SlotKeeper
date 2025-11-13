@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from slotkeeper.config import Settings
 from slotkeeper.core.booking.shared import repo_scope
 from slotkeeper.core.booking.models import BookingStatus
-from slotkeeper.ui.keyboards import contact_kb
+from slotkeeper.ui.keyboards import contact_kb, start_kb
 
 router = Router()
 
@@ -52,16 +52,22 @@ async def admin_confirm(cb: CallbackQuery) -> None:
             await cb.bot.send_message(
                 b.client_chat_id,
                 (
-                    f"✅ Ваша бронь подтверждена!\n"
-                    f"📝 Заявка #{b.id}\n"
+                    f"✅ Ваша бронь подтверждена!\n\n"
+                    f"📝 Заявка # {b.id}\n"
                     f"🕓 {b.starts_at:%Y-%m-%d %H:%M} – {b.ends_at:%H:%M}\n\n"
-                    f"ℹ️ Информация о месте:\n"
+                    f"ℹ️ Информация о месте:\n\n"
                     f"📍 Адрес: {Settings().PLACE_ADDRESS}\n"
                     f"🗺 <a href='{Settings().PLACE_MAP_URL}'>Открыть в карте</a>\n\n"
                     f"Если что-то нужно — жмите кнопку ниже."
                 ),
                 reply_markup=contact_kb(),
                 parse_mode="HTML",
+            )
+
+            await cb.bot.send_message(
+                b.client_chat_id,
+                "Если позже захочешь оформить ещё одну бронь, нажми кнопку ниже:",
+                reply_markup=start_kb(),
             )
         except Exception:
             pass
