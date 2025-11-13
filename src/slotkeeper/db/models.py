@@ -1,8 +1,7 @@
 from __future__ import annotations
-from datetime import datetime, date
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Date, DateTime, Enum, Boolean,
-    ForeignKey, CheckConstraint, UniqueConstraint, func
+    ForeignKey, CheckConstraint, func
 )
 from sqlalchemy.orm import declarative_base, relationship
 import enum

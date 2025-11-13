@@ -40,6 +40,8 @@ class InMemoryBookingRepo:
 
     def conflicts(self, start: datetime, end: datetime) -> Iterable[Booking]:
         for b in self._items.values():
-            if b.status in {BookingStatus.confirmed, BookingStatus.pending_review}:
-                if not (b.ends_at <= start or end <= b.starts_at):
-                    yield b
+            if (
+                    b.status in {BookingStatus.confirmed, BookingStatus.pending_review}
+                    and not (b.ends_at <= start or end <= b.starts_at)
+            ):
+                yield b

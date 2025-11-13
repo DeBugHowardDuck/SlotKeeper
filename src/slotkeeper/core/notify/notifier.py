@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -67,10 +68,8 @@ class Notifier:
             f"{b2.starts_at.strftime('%Y-%m-%d %H:%M')}–{b2.ends_at.strftime('%H:%M')}"
         )
         for admin_id in settings.admin_ids:
-            try:
+            with suppress(asyncio.TimeoutError):
                 await bot.send_message(chat_id=admin_id, text=text)
-            except Exception:
-                pass
 
 
 NOTIFY = Notifier()

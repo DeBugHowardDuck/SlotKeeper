@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -42,10 +44,9 @@ async def admin_confirm(cb: CallbackQuery) -> None:
         b.status = BookingStatus.confirmed
         repo.update(b)
 
-    try:
+    with suppress(asyncio.TimeoutError):
         await cb.message.edit_text(cb.message.text + "\n\nСтатус: ✅ подтверждено.")
-    except Exception:
-        pass
+
 
     if b.client_chat_id:
         try:
@@ -58,7 +59,7 @@ async def admin_confirm(cb: CallbackQuery) -> None:
                     f"ℹ️ Информация о месте:\n\n"
                     f"📍 Адрес: {Settings().PLACE_ADDRESS}\n"
                     f"🗺 <a href='{Settings().PLACE_MAP_URL}'>Открыть в карте</a>\n\n"
-                    f"Если что-то нужно — жмите кнопку ниже."
+                    f"Если остались вопросы — жмите кнопку ниже 'Связаться с менеджером.'."
                 ),
                 reply_markup=contact_kb(),
                 parse_mode="HTML",
@@ -66,7 +67,7 @@ async def admin_confirm(cb: CallbackQuery) -> None:
 
             await cb.bot.send_message(
                 b.client_chat_id,
-                "Если позже захочешь оформить ещё одну бронь, нажми кнопку ниже:",
+                "Если позже захотите оформить ещё одну бронь, нажми кнопку ниже:",
                 reply_markup=start_kb(),
             )
         except Exception:
@@ -97,16 +98,12 @@ async def admin_reject(cb: CallbackQuery) -> None:
         b.status = BookingStatus.cancelled_by_admin
         repo.update(b)
 
-    try:
+    with suppress(asyncio.TimeoutError):
         await cb.message.edit_text(cb.message.text + "\n\nСтатус: 🛑 отклонено админом.")
-    except Exception:
-        pass
 
     if b.client_chat_id:
-        try:
+        with suppress(asyncio.TimeoutError):
             await cb.bot.send_message(b.client_chat_id, f"Заявка #{b.id} отклонена администратором.")
-        except Exception:
-            pass
 
     await cb.answer("Отклонено.")
 

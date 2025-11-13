@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aiogram import Router, F
-from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.filters import CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
@@ -28,7 +28,7 @@ async def start_booking(cb: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(ClientFlow.ContactCollect)
     await cb.message.answer(
         "💬 Как к тебе обращаться?\n"
-        "    Напиши свое <b>имя</b>."
+        "Напиши свое <b>имя</b>."
     )
     await cb.answer()
 

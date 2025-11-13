@@ -1,8 +1,7 @@
 from __future__ import annotations
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from calendar import monthrange
-from datetime import datetime, date
-from zoneinfo import ZoneInfo
+from datetime import date
 
 
 def start_kb() -> InlineKeyboardMarkup:
@@ -19,24 +18,6 @@ def main_menu_kb() -> InlineKeyboardMarkup:
         ]
     )
 
-
-#
-#
-# def weekdays_kb(today: datetime) -> InlineKeyboardMarkup:
-#     names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-#     rows = []
-#     for i in range(7):
-#         d = today.date().toordinal() + i
-#         rows.append(
-#             [
-#                 InlineKeyboardButton(
-#                     text=f"{names[(today.weekday() + i) % 7]}", callback_data=f"wk:{d}"
-#                 )
-#             ]
-#         )
-#     return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
 def times_kb(iso_list: list[str]) -> InlineKeyboardMarkup:
     rows = []
     row: list[InlineKeyboardButton] = []
@@ -50,16 +31,6 @@ def times_kb(iso_list: list[str]) -> InlineKeyboardMarkup:
         rows.append(row)
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
-
-# def messenger_kb() -> InlineKeyboardMarkup:
-#     return InlineKeyboardMarkup(
-#         inline_keyboard=[
-#             [InlineKeyboardButton(text="Telegram", callback_data="msgr:tg")],
-#             [InlineKeyboardButton(text="WhatsApp", callback_data="msgr:wa")],
-#             [InlineKeyboardButton(text="Звонок", callback_data="msgr:call")],
-#         ]
-#     )
-#
 
 def admin_booking_actions_kb(booking_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
@@ -79,7 +50,6 @@ def admin_booking_actions_kb(booking_id: int) -> InlineKeyboardMarkup:
 def month_kb(
         year: int, month: int, tz_name: str, min_date: date, max_date: date
 ) -> InlineKeyboardMarkup:
-    tz = ZoneInfo(tz_name)
     days_in_month = monthrange(year, month)[1]
     first_day = date(year, month, 1)
 
@@ -118,9 +88,6 @@ def month_kb(
         while len(row) < 7:
             row.append(InlineKeyboardButton(text=" ", callback_data="noop"))
         rows.append(row)
-
-    prev_month = (year if month > 1 else year - 1, 12 if month == 1 else month - 1)
-    next_month = (year if month < 12 else year + 1, 1 if month == 12 else month + 1)
 
     rows.append(
         [

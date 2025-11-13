@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+from contextlib import suppress
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -24,10 +25,8 @@ class HoldManager:
         while not self._stop.is_set():
             now = datetime.now(tzinfo)
             self.repo.mark_expired_if_held_and_due(now)
-            try:
+            with suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(self._stop.wait(), timeout=interval_seconds)
-            except asyncio.TimeoutError:
-                pass
 
     async def stop(self) -> None:
         self._stop.set()

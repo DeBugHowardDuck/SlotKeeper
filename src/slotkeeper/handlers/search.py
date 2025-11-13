@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -22,7 +24,6 @@ from slotkeeper.ui.keyboards import (
     admin_booking_actions_kb,
     duration_kb,
     month_kb,
-    start_kb,
 )
 
 
@@ -337,14 +338,12 @@ async def pick_duration_and_hold(cb: CallbackQuery, state: FSMContext) -> None:
         )
 
         for admin_id in settings.admin_ids:
-            try:
+            with suppress(asyncio.TimeoutError):
                 await cb.bot.send_message(
                     admin_id,
                     admin_text,
                     reply_markup=admin_booking_actions_kb(booking_id),
                 )
-            except Exception:
-                pass
 
         await cb.message.answer(
             f"⏳📝 Заявка # {booking.id} в обработке:\n\n"
@@ -369,7 +368,7 @@ async def contact_admin_callback(cb: CallbackQuery, state: FSMContext):
     )
 
     for admin_id in settings.admin_ids:
-        try:
+        with suppress(asyncio.TimeoutError):
             await cb.bot.send_message(
                 admin_id,
                 (
@@ -382,6 +381,4 @@ async def contact_admin_callback(cb: CallbackQuery, state: FSMContext):
                 ),
                 parse_mode="HTML",
             )
-        except Exception:
-            pass
     await cb.answer()

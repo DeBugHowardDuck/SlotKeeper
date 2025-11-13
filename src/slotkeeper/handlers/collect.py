@@ -4,10 +4,9 @@ from aiogram import Router
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
-from slotkeeper.utils.validators import is_phone, parse_guests, normalize_phone
+from slotkeeper.utils.validators import parse_guests, normalize_phone
 
 from slotkeeper.fsm.states import ClientFlow
-from slotkeeper.utils.validators import is_phone, parse_guests
 
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta, date
