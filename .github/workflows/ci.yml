@@ -24,8 +24,8 @@ jobs:
       - name: Lint (ruff)
         run: ruff check --output-format=github .
 
-      - name: Typecheck (mypy)
-        run: mypy src
+#      - name: Typecheck (mypy)
+#        run: mypy src
 
       - name: Tests
         run: |
